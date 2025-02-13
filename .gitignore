@@ -169,3 +169,39 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
+
+# Ignore dataset images and binary files
+dataset/
+*.jpg
+*.jpeg
+*.png
+*.gif
+*.bmp
+*.tiff
+*.tif
+*.psd
+*.raw
+
+# Ignore DS_Store (MacOS system file)
+.DS_Store
+dataset/.DS_Store
+
+# Ignore all hidden system files
+._*
+Thumbs.db
+ehthumbs.db
+
+# Ignore any other binary files
+*.bin
+*.exe
+*.dll
+*.so
+*.dylib
+*.o
+*.obj
+*.class
+*.jar
+*.pyc
+*.pyo
+*.pyd
+
