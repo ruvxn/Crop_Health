@@ -7,6 +7,7 @@ import os
 from tensorflow.keras.applications import MobileNetV2
 from tensorflow.keras.layers import Dense, GlobalAveragePooling2D, Dropout
 from tensorflow.keras.models import Sequential
+from tensorflow.keras.callbacks import EarlyStopping
 from sklearn.metrics import confusion_matrix, classification_report
 
 # Data Paths
@@ -15,8 +16,8 @@ valid_path = 'dataset/New Plant Diseases Dataset(Augmented)/New Plant Diseases D
 test_path = 'dataset/test'
 
 # Load the datasets
-IMG_SIZE = (224, 224)  # Preffered size for  MobileNetV2
-batch_size = 32
+IMG_SIZE = (224, 224)  
+batch_size = 64  # Increased batch size from 32 to 64 for better performance
 
 train_ds = tf.keras.preprocessing.image_dataset_from_directory(
     train_path,
@@ -46,31 +47,49 @@ num_classes = len(class_names)
 # Data Augmentation for better generalization 
 data_augmentation = tf.keras.Sequential([
     tf.keras.layers.RandomFlip('horizontal'),
-    tf.keras.layers.RandomRotation(0.2),
-    tf.keras.layers.RandomZoom(0.1),
+    tf.keras.layers.RandomRotation(0.3),
+    tf.keras.layers.RandomZoom(0.2),
+    tf.keras.layers.RandomContrast(0.2),
+    tf.keras.layers.RandomBrightness(0.2)
 ])
 
 # Load the MobileNetV2 model as the base model
 base_model = MobileNetV2(weights='imagenet', include_top=False, input_shape=(224, 224, 3))
-base_model.trainable = False  
+
+# Unfreeze last 30 layers for fine-tuning 
+base_model.trainable = True
+for layer in base_model.layers[:-30]:
+    layer.trainable = False
 
 # Create the model
 model = Sequential([
     data_augmentation,
     base_model,
     GlobalAveragePooling2D(),
-    Dropout(0.3),
+    Dropout(0.5),  # Increased dropout to reduce overfitting 
     Dense(units=512, activation='relu'),
-    Dropout(0.3),
+    Dropout(0.5),
     Dense(units=num_classes, activation='softmax')
 ])
 
+# Learning rate scheduler
+initial_learning_rate = 0.001
+lr_schedule = tf.keras.optimizers.schedules.ExponentialDecay(
+    initial_learning_rate,
+    decay_steps=1000,
+    decay_rate=0.9,
+    staircase=True
+)
+
 # Compile the model
-optimizer = tf.keras.optimizers.Adam(learning_rate=0.001)
+optimizer = tf.keras.optimizers.Adam(learning_rate=lr_schedule)
 model.compile(optimizer=optimizer, loss='sparse_categorical_crossentropy', metrics=['accuracy'])
 
+# Early stopping
+early_stopping = EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True)
+
 # Train the model
-history = model.fit(train_ds, validation_data=valid_ds, epochs=15)
+history = model.fit(train_ds, validation_data=valid_ds, epochs=50, callbacks=[early_stopping])
 
 # Plot accuracy
 plt.plot(history.history['accuracy'], label='Training Accuracy')
@@ -113,7 +132,5 @@ plt.show()
 print(classification_report(y_true, y_pred, target_names=class_names))
 
 # Save the model
-model.save('crop_health_model.h5')
-model.save('crop_health_model.keras')
+model.save('crop_health_model_v2.h5')
 print("Model saved successfully!")
-
