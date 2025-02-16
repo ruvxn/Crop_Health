@@ -8,6 +8,7 @@ from tensorflow.keras.applications import MobileNetV2
 from tensorflow.keras.layers import Dense, GlobalAveragePooling2D, Dropout
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.callbacks import EarlyStopping
+from sklearn.utils.class_weight import compute_class_weight
 from sklearn.metrics import confusion_matrix, classification_report
 
 # Data Paths
@@ -44,6 +45,12 @@ print("Classes:", class_names)
 # Calculate the number of classes
 num_classes = len(class_names)
 
+# Compute class weights for handling imbalanced dataset
+labels = np.concatenate([y for x, y in train_ds], axis=0)
+class_weights = compute_class_weight('balanced', classes=np.unique(labels), y=labels) # Compute class weights by balancing the dataset so that the model does not get biased towards the majority class
+class_weights = dict(enumerate(class_weights))
+print("Class Weights:", class_weights)
+
 # Data Augmentation for better generalization 
 data_augmentation = tf.keras.Sequential([
     tf.keras.layers.RandomFlip('horizontal'),
@@ -56,9 +63,9 @@ data_augmentation = tf.keras.Sequential([
 # Load the MobileNetV2 model as the base model
 base_model = MobileNetV2(weights='imagenet', include_top=False, input_shape=(224, 224, 3))
 
-# Unfreeze last 30 layers for fine-tuning 
+# Unfreeze last 50 layers for fine-tuning 
 base_model.trainable = True
-for layer in base_model.layers[:-30]:
+for layer in base_model.layers[:-50]: 
     layer.trainable = False
 
 # Create the model
@@ -88,8 +95,8 @@ model.compile(optimizer=optimizer, loss='sparse_categorical_crossentropy', metri
 # Early stopping
 early_stopping = EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True)
 
-# Train the model
-history = model.fit(train_ds, validation_data=valid_ds, epochs=50, callbacks=[early_stopping])
+# Train the model with class weights
+history = model.fit(train_ds, validation_data=valid_ds, epochs=50, callbacks=[early_stopping], class_weight=class_weights) #class weights because of imbalanced dataset
 
 # Plot accuracy
 plt.plot(history.history['accuracy'], label='Training Accuracy')
@@ -132,5 +139,5 @@ plt.show()
 print(classification_report(y_true, y_pred, target_names=class_names))
 
 # Save the model
-model.save('crop_health_model_v2.h5')
+model.save('crop_health_model_v3.h5')
 print("Model saved successfully!")
