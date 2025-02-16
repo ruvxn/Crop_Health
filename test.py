@@ -1,9 +1,8 @@
-import os
+import tensorflow as tf
 
-test_path = 'dataset/test'
+# Create a simple tensor and check device placement
+a = tf.constant([1.0, 2.0, 3.0])
+b = tf.constant([4.0, 5.0, 6.0])
+c = a * b
 
-if not os.path.exists(test_path):
-    print("Error: Test directory does not exist!")
-else:
-    num_files = sum([len(files) for _, _, files in os.walk(test_path)])
-    print(f"Test dataset contains {num_files} images.")
+print("TensorFlow is running on:", c.device)

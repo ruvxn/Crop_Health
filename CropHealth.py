@@ -4,19 +4,18 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import tensorflow as tf
 import os
-from tensorflow.keras.applications import EfficientNetB3 
+from tensorflow.keras.applications import MobileNetV2
 from tensorflow.keras.layers import Dense, GlobalAveragePooling2D, Dropout
 from tensorflow.keras.models import Sequential
 from sklearn.metrics import confusion_matrix, classification_report
 
-
-#Data Paths
+# Data Paths
 train_path = 'dataset/New Plant Diseases Dataset(Augmented)/New Plant Diseases Dataset(Augmented)/train'
 valid_path = 'dataset/New Plant Diseases Dataset(Augmented)/New Plant Diseases Dataset(Augmented)/valid'
 test_path = 'dataset/test'
 
-#load the datasets
-IMG_SIZE = (300, 300)
+# Load the datasets
+IMG_SIZE = (224, 224)  # Preffered size for  MobileNetV2
 batch_size = 32
 
 train_ds = tf.keras.preprocessing.image_dataset_from_directory(
@@ -41,40 +40,36 @@ test_ds = tf.keras.preprocessing.image_dataset_from_directory(
 class_names = train_ds.class_names 
 print("Classes:", class_names)
 
-#calculate the number of classes
+# Calculate the number of classes
 num_classes = len(class_names)
 
-
-# Augment the data for better generalization 
+# Data Augmentation for better generalization 
 data_augmentation = tf.keras.Sequential([
     tf.keras.layers.RandomFlip('horizontal'),
     tf.keras.layers.RandomRotation(0.2),
     tf.keras.layers.RandomZoom(0.1),
 ])
 
+# Load the MobileNetV2 model as the base model
+base_model = MobileNetV2(weights='imagenet', include_top=False, input_shape=(224, 224, 3))
+base_model.trainable = False  
 
-#Create the model
-#Load the EfficientNetB3 model as the base model
-
-base_model = EfficientNetB3(weights='imagenet', include_top=False, input_shape=(300, 300, 3))
-base_model.trainable = False
-
-#Create the model
+# Create the model
 model = Sequential([
     data_augmentation,
     base_model,
     GlobalAveragePooling2D(),
     Dropout(0.3),
-    Dense(units = 512, activation='relu'),
+    Dense(units=512, activation='relu'),
     Dropout(0.3),
-    Dense(units = num_classes, activation='softmax')
+    Dense(units=num_classes, activation='softmax')
 ])
 
-#Compile the model
-optimizer_1 = tf.keras.optimizers.Adam(learning_rate=0.001)
-model.compile(optimizer=optimizer_1, loss='sparse_categorical_crossentropy', metrics=['accuracy'])
+# Compile the model
+optimizer = tf.keras.optimizers.Adam(learning_rate=0.001)
+model.compile(optimizer=optimizer, loss='sparse_categorical_crossentropy', metrics=['accuracy'])
 
-#Train the model
+# Train the model
 history = model.fit(train_ds, validation_data=valid_ds, epochs=15)
 
 # Plot accuracy
@@ -116,3 +111,9 @@ plt.show()
 
 # Print classification report
 print(classification_report(y_true, y_pred, target_names=class_names))
+
+# Save the model
+model.save('crop_health_model.h5')
+model.save('crop_health_model.keras')
+print("Model saved successfully!")
+
