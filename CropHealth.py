@@ -17,25 +17,28 @@ valid_path = 'dataset/New Plant Diseases Dataset(Augmented)/New Plant Diseases D
 test_path = 'dataset/test'
 
 # Load the datasets
-IMG_SIZE = (224, 224)  
-batch_size = 64  # Increased batch size from 32 to 64 for better performance
+IMG_SIZE = (224, 224)  # Standard image size for MobileNetV2
+batch_size = 64  # Increased batch size for better training performance
 
 train_ds = tf.keras.preprocessing.image_dataset_from_directory(
     train_path,
     image_size=IMG_SIZE,
-    batch_size=batch_size
+    batch_size=batch_size,
+    label_mode='categorical'  # Multi-class classification
 )
 
 valid_ds = tf.keras.preprocessing.image_dataset_from_directory(
     valid_path,
     image_size=IMG_SIZE,
-    batch_size=batch_size
+    batch_size=batch_size,
+    label_mode='categorical'
 )
 
 test_ds = tf.keras.preprocessing.image_dataset_from_directory(
     test_path,
     image_size=IMG_SIZE,
-    batch_size=batch_size
+    batch_size=batch_size,
+    label_mode='categorical'
 )
 
 # Get class names
@@ -46,12 +49,14 @@ print("Classes:", class_names)
 num_classes = len(class_names)
 
 # Compute class weights for handling imbalanced dataset
-labels = np.concatenate([y for x, y in train_ds], axis=0)
-class_weights = compute_class_weight('balanced', classes=np.unique(labels), y=labels) # Compute class weights by balancing the dataset so that the model does not get biased towards the majority class
+labels = np.argmax(np.concatenate([y for x, y in train_ds], axis=0), axis=1)  # Convert one-hot labels to integer labels
+class_weights = compute_class_weight('balanced', classes=np.unique(labels), y=labels) 
 class_weights = dict(enumerate(class_weights))
 print("Class Weights:", class_weights)
 
-# Data Augmentation for better generalization 
+# Data Augmentation for better generalization
+# Helps prevent overfitting by applying transformations
+
 data_augmentation = tf.keras.Sequential([
     tf.keras.layers.RandomFlip('horizontal'),
     tf.keras.layers.RandomRotation(0.3),
@@ -63,9 +68,9 @@ data_augmentation = tf.keras.Sequential([
 # Load the MobileNetV2 model as the base model
 base_model = MobileNetV2(weights='imagenet', include_top=False, input_shape=(224, 224, 3))
 
-# Unfreeze last 50 layers for fine-tuning 
+# Unfreeze last 70 layers for fine-tuning 
 base_model.trainable = True
-for layer in base_model.layers[:-50]: 
+for layer in base_model.layers[:-70]: 
     layer.trainable = False
 
 # Create the model
@@ -76,27 +81,29 @@ model = Sequential([
     Dropout(0.5),  # Increased dropout to reduce overfitting 
     Dense(units=512, activation='relu'),
     Dropout(0.5),
-    Dense(units=num_classes, activation='softmax')
+    Dense(units=num_classes, activation='softmax')  # Multi-class classification
 ])
 
 # Learning rate scheduler
 initial_learning_rate = 0.001
 lr_schedule = tf.keras.optimizers.schedules.ExponentialDecay(
     initial_learning_rate,
-    decay_steps=1000,
-    decay_rate=0.9,
+    decay_steps=2000,  # Controls how fast the learning rate decays
+    decay_rate=0.85,   # Slower decay to stabilize training
     staircase=True
 )
 
-# Compile the model
+# Compile the model with categorical cross-entropy loss
+# Since this is a multi-class classification problem
+loss = 'categorical_crossentropy'  # Replacing focal loss with standard categorical cross-entropy
 optimizer = tf.keras.optimizers.Adam(learning_rate=lr_schedule)
-model.compile(optimizer=optimizer, loss='sparse_categorical_crossentropy', metrics=['accuracy'])
+model.compile(optimizer=optimizer, loss=loss, metrics=['accuracy'])
 
-# Early stopping
+# Early stopping to prevent overfitting
 early_stopping = EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True)
 
-# Train the model with class weights
-history = model.fit(train_ds, validation_data=valid_ds, epochs=50, callbacks=[early_stopping], class_weight=class_weights) #class weights because of imbalanced dataset
+# Train the model with class weights to handle imbalanced classes
+history = model.fit(train_ds, validation_data=valid_ds, epochs=50, callbacks=[early_stopping], class_weight=class_weights)
 
 # Plot accuracy
 plt.plot(history.history['accuracy'], label='Training Accuracy')
@@ -139,5 +146,5 @@ plt.show()
 print(classification_report(y_true, y_pred, target_names=class_names))
 
 # Save the model
-model.save('crop_health_model_v3.h5')
+model.save('crop_health_model_v4.h5')
 print("Model saved successfully!")
